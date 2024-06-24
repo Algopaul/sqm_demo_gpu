@@ -225,11 +225,14 @@ def main(_):
   NJAX = CHUNK_SIZE.value
   svd_state = isvd.initialize_empty_svd(nx**2*4)
   checkpoints = []
+  checkpoint_times = []
 
   t=0
   for i in range(10000):
     state, prim_state, t, svd_state = nsteps(state, prim_state, t, NJAX, dx, CFL.value, svd_state)
-    logging.info('Step: %d, Timesteps: %d, Simulated time: %.2e', i, NJAX*i, t)
+    logging.info('Step: %d, Timesteps: %d, Simulated time: %.2e', i+1, NJAX*(i+1), t)
+    logging.info('Datasize: %.6e GB', NJAX*(i+1)*nx**2*4*8*1e-9)
+    logging.info('SVD size: %.6e GB', (NJAX*(i+1)+nx**2*4)*EULER_SVD_MAXRANK.value*8*1e-9 )
     if PLOTTING.value:
       img.set_array(jnp.minimum(2.1, jnp.maximum(0.5, prim_state[:N, :N].T)))
       img.autoscale()
@@ -239,6 +242,7 @@ def main(_):
       break
     if i % CHECKPOINT_FREQUENCY.value == 0:
       checkpoints.append(prim_state)
+      checkpoint_times.append(t)
 
 
   isvd.store_svd(svd_state, jnp.zeros(nx**2*4), SVD_OUTFILE.value)
@@ -246,6 +250,7 @@ def main(_):
     checkpoints = jnp.stack(checkpoints)
     checkpoints = jnp.reshape(checkpoints, (checkpoints.shape[0], -1))
     f.create_dataset("data", data=checkpoints.T)
+    f.create_dataset("times", data=jnp.stack(checkpoint_times))
   
 
   if PLOTTING.value:
