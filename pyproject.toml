@@ -6,9 +6,13 @@ requires-python = ">=3.11"
 
 dependencies = [
   "absl-py",
+  "h5py",
   "numpy",
   "jaxlib",
-  "jax"
+  "jax",
+  "incsvdpack @ git+ssh://git@github.com/Algopaul/incsvdpack",
+  "qmpack @ git+ssh://git@github.com/Algopaul/qmpack",
+  "matplotlib"
 ]
 
 dynamic = ["version"]
