@@ -2,8 +2,9 @@ from absl import flags, app, logging
 import matplotlib.pyplot as plt
 import jax.numpy as jnp
 import jax
-import incsvdpack.isvd_base as isvd
+import sqm_demo.incremental_svd as isvd
 import h5py
+import gc
 jax.config.update('jax_debug_nans', True)
 jax.config.update('jax_enable_x64', True)
 
@@ -190,13 +191,16 @@ def nsteps(state, prim_state, t, n, dx, CFL, svd_state):
   logging.info('Start  %i steps integration at t=%.2e', n, t)
   _, (state, prim_state, t) = jax.lax.scan(body_fun, (state, prim_state, t), jnp.arange(n))
   logging.info('Finish %i steps integration to t=%.2e', n, t[-1])
+  last_state = state[-1]
+  last_prim_state = prim_state[-1]
   if COMPUTE_SVD.value:
     prim_state_flat = jnp.reshape(prim_state, (n, -1)).T
+    del state, prim_state
+    gc.collect()
     logging.info('Start incremental svd update with new chunk size %d, %d', *prim_state_flat.shape)
-    svd_state = isvd.svd_new_chunk(svd_state, prim_state_flat)
-    svd_state = isvd.truncate_svd_max_rank(svd_state, EULER_SVD_MAXRANK.value)
+    svd_state = isvd.update_and_truncate(svd_state, prim_state_flat, EULER_SVD_MAXRANK.value)
     logging.info('Incremental svd update complete')
-  return state[-1], prim_state[-1], t[-1], svd_state
+  return last_state, last_prim_state, t[-1], svd_state
 
 
 def main(_):

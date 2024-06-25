@@ -1,5 +1,5 @@
 [project]
-name = "sqmdemo"
+name = "sqm_demo"
 description = "Demo for streaming computation of quadratic manifolds"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -8,9 +8,7 @@ dependencies = [
   "absl-py",
   "h5py",
   "numpy",
-  "jaxlib",
   "jax",
-  "incsvdpack @ git+ssh://git@github.com/Algopaul/incsvdpack",
   "qmpack @ git+ssh://git@github.com/Algopaul/qmpack",
   "matplotlib"
 ]
@@ -25,4 +23,4 @@ dev = [
 ]
 
 [tool.setuptools]
-py-modules = ["sqmdemo"]
+py-modules = ["sqm_demo"]
