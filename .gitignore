@@ -2,7 +2,7 @@
 *.pyc
 
 # Byte-compiled
-_pycache__/
+__pycache__/
 .cache/
 .venv/
 
@@ -24,3 +24,6 @@ poetry.lock
 
 # PyCharm
 .idea
+
+# Repo specific
+frames/

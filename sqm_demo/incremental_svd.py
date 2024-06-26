@@ -3,7 +3,9 @@ import h5py
 import jax.numpy as np
 import jax
 from collections import namedtuple
-from absl import logging
+from absl import logging, flags
+
+SVD_MAXRANK = flags.DEFINE_integer('svd_max_rank', 200, 'The maximal rank of the svd.')
 
 IncrementalSVDState = namedtuple("IncrementalSVDState", "U S V mu")
 
@@ -45,6 +47,28 @@ def qr_update_full(Q, R, B):
   return np.linalg.qr(A)
 
 
+@jax.jit
+def svd_new_chunk_autotruncate(
+    iss: IncrementalSVDState,
+    new_chunk,
+    ):
+  Q, R = qr_update_full(iss.U, iss.S, new_chunk)
+  Ui, Si, ViT = np.linalg.svd(R, full_matrices=False)
+  S = Si[:SVD_MAXRANK.value]
+  U = Q @ Ui[:, :SVD_MAXRANK.value]
+  V = np.vstack((iss.V @ ViT.T[:iss.V.shape[1], :SVD_MAXRANK.value], ViT.T[iss.V.shape[1]:, :SVD_MAXRANK.value]))
+  return IncrementalSVDState(U, S, V, iss.mu)
+
+
+def update_and_truncate(iss: IncrementalSVDState, new_chunk):
+  if len(iss.S) >= SVD_MAXRANK.value:
+    logging.info("Auto-truncate")
+    return svd_new_chunk_autotruncate(iss, new_chunk)
+  else:
+    iss = svd_new_chunk(iss, new_chunk)
+    iss = truncate_svd_max_rank(iss, SVD_MAXRANK.value)
+  return iss
+
 
 
 @jax.jit
@@ -76,10 +100,10 @@ def truncate_svd_max_rank(iss: IncrementalSVDState, max_rank: int):
     return iss
 
 
-def update_and_truncate(iss: IncrementalSVDState, new_chunk, max_rank):
-  iss = svd_new_chunk(iss, new_chunk)
-  logging.info("Orthogonality %s", iss.U[:, -1].T @ iss.U[:, 0])
-  return truncate_svd_max_rank(iss, max_rank)
+# def update_and_truncate(iss: IncrementalSVDState, new_chunk, max_rank):
+#   iss = svd_new_chunk(iss, new_chunk)
+#   logging.info("Orthogonality %s", iss.U[:, -1].T @ iss.U[:, 0])
+#   return truncate_svd_max_rank(iss, max_rank)
 
 
 def svd_new_col(iss: IncrementalSVDState, new_col):

@@ -2,14 +2,13 @@
 name = "sqm_demo"
 description = "Demo for streaming computation of quadratic manifolds"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.8"
 
 dependencies = [
   "absl-py",
   "h5py",
   "numpy",
   "jax",
-  "qmpack @ git+ssh://git@github.com/Algopaul/qmpack",
   "matplotlib"
 ]
 
