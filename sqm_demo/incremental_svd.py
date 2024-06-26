@@ -6,18 +6,37 @@ from collections import namedtuple
 from absl import logging, flags
 
 SVD_MAXRANK = flags.DEFINE_integer('svd_max_rank', 200, 'The maximal rank of the svd.')
+SVD_AUTOTRUNC = flags.DEFINE_bool('svd_autotrunc', True, 'Use autotrunc formulation.')
+SVD_INITIAL_FILE = flags.DEFINE_string('svd_initial_file', '', 'Load initial svd from here')
 
-IncrementalSVDState = namedtuple("IncrementalSVDState", "U S V mu")
+
+IncrementalSVDState = namedtuple("IncrementalSVDState", "U S V")
+
+
+
+def load_or_create_initial_svd(state_dim):
+  if SVD_INITIAL_FILE.value == '':
+    return initialize_empty_svd(state_dim)
+  else:
+    logging.info("Loading initial svd.")
+    with h5py.File(SVD_INITIAL_FILE.value, 'r') as f:
+      U = np.asarray(f['U'])
+      S = np.asarray(f['S'])
+      V = np.asarray(f['V'])
+      return IncrementalSVDState(U, S, V)
+
 
 
 def initialize_incremental_svd(M):
   U, S, VT = np.linalg.svd(M, full_matrices=False)
-  return IncrementalSVDState(U, S, VT.T, [])
+  return IncrementalSVDState(U, S, VT.T)
 
 
 def initialize_empty_svd(n_rows):
-  iss = IncrementalSVDState(
-      np.zeros((n_rows, 0)), np.zeros((0,)), np.zeros((0, 0)), [])
+  U = np.zeros((n_rows, SVD_MAXRANK.value))
+  S = np.zeros(SVD_MAXRANK.value)
+  V = np.zeros((0, SVD_MAXRANK.value))
+  iss = IncrementalSVDState(U, S, V)
   return iss
 
 
@@ -57,11 +76,11 @@ def svd_new_chunk_autotruncate(
   S = Si[:SVD_MAXRANK.value]
   U = Q @ Ui[:, :SVD_MAXRANK.value]
   V = np.vstack((iss.V @ ViT.T[:iss.V.shape[1], :SVD_MAXRANK.value], ViT.T[iss.V.shape[1]:, :SVD_MAXRANK.value]))
-  return IncrementalSVDState(U, S, V, iss.mu)
+  return IncrementalSVDState(U, S, V)
 
 
 def update_and_truncate(iss: IncrementalSVDState, new_chunk):
-  if len(iss.S) >= SVD_MAXRANK.value:
+  if (len(iss.S) >= SVD_MAXRANK.value) and (SVD_AUTOTRUNC.value is True):
     logging.info("Auto-truncate")
     return svd_new_chunk_autotruncate(iss, new_chunk)
   else:
@@ -85,7 +104,7 @@ def svd_new_chunk(
   S = Si
   U = Q @ Ui
   V = W @ ViT.T
-  return IncrementalSVDState(U, S, V, iss.mu)
+  return IncrementalSVDState(U, S, V)
 
 
 def truncate_svd_max_rank(iss: IncrementalSVDState, max_rank: int):
@@ -93,9 +112,9 @@ def truncate_svd_max_rank(iss: IncrementalSVDState, max_rank: int):
     U = iss.U[:, :max_rank]
     S = iss.S[:max_rank]
     V = iss.V[:, :max_rank]
-    mu_new = iss.S[max_rank:]
-    mu = [*iss.mu, *mu_new]
-    return IncrementalSVDState(U, S, V, mu)
+    # mu_new = iss.S[max_rank:]
+    # mu = [*iss.mu, *mu_new]
+    return IncrementalSVDState(U, S, V)
   else:
     return iss
 
@@ -117,6 +136,6 @@ def store_svd(iss, shift, filename, runtime=-1.0):
     file.create_dataset('S', data=iss.S)
     file.create_dataset('V', data=iss.V)
     file.create_dataset('shift', data=shift)
-    file.create_dataset('rejected_svals', data=np.array(iss.mu))
+    # file.create_dataset('rejected_svals', data=np.array(iss.mu))
     file.create_dataset('runtime', data=np.array([runtime]))
   pass

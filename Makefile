@@ -7,6 +7,9 @@
 frames:
 	mkdir -p frames
 
+checkpoints:
+	mkdir -p checkpoints
+
 test:
 	srun --mem 32G --account extremedata --time 1:00:00\
 		.venv/bin/python sqm_demo/tracked_euler.py --grid_n 512 --euler_plotting True --svd_outfile euler_512_svd.h5 --checkpoint_frequency 20 --checkpoint_outfile euler_512_checkpoints.h5
@@ -52,50 +55,14 @@ spread_x_sweep: | frames
 	srun $(SLURMPARAMS) $(RUNCMD) $(SWEEP) --velocity_x_spread_factor=0.505 --frame_basename=x_spread_0.505 &
 	srun $(SLURMPARAMS) $(RUNCMD) $(SWEEP) --velocity_x_spread_factor=0.510 --frame_basename=x_spread_0.510 &
 
-
-test_gpu_param: | frames
-	# srun --mem 32G --reservation h100-testing --partition=gpu-h100 --account extremedata --time 0:20:00\
-	# 	 --gres=gpu:h100:1\
-	# 	.venv/bin/python sqm_demo/tracked_euler.py --grid_n ${NGRID} --euler_plotting True --checkpoint_frequency 50 --euler_chunk_size=100 --compute_svd=False --velocity_x_spread_factor=0.4
-	# srun --mem 32G --reservation h100-testing --partition=gpu-h100 --account extremedata --time 0:20:00\
-	# 	 --gres=gpu:h100:1\
-	# 	.venv/bin/python sqm_demo/tracked_euler.py --grid_n ${NGRID} --euler_plotting True --checkpoint_frequency 50 --euler_chunk_size=100 --compute_svd=False --velocity_x_spread_factor=0.6
-	# srun --mem 32G --reservation h100-testing --partition=gpu-h100 --account extremedata --time 0:20:00\
-	# 	 --gres=gpu:h100:1\
-	# 	.venv/bin/python sqm_demo/tracked_euler.py --grid_n ${NGRID} --euler_plotting True --checkpoint_frequency 50 --euler_chunk_size=100 --compute_svd=False --velocity_x_spread_factor=0.5
-	# srun --mem 32G --reservation h100-testing --partition=gpu-h100 --account extremedata --time 0:20:00\
-	# 	 --gres=gpu:h100:1\
-	# 	.venv/bin/python sqm_demo/tracked_euler.py --grid_n ${NGRID} --euler_plotting True --checkpoint_frequency 50 --euler_chunk_size=100 --compute_svd=False --velocity_x_spread_factor=0.55
-	# srun --mem 32G --reservation h100-testing --partition=gpu-h100 --account extremedata --time 0:20:00\
-	# 	 --gres=gpu:h100:1\
-	# 	.venv/bin/python sqm_demo/tracked_euler.py --grid_n ${NGRID} --euler_plotting True --checkpoint_frequency 50 --euler_chunk_size=100 --compute_svd=False --velocity_x_spread_factor=0.45
-	# srun --mem 32G --reservation h100-testing --partition=gpu-h100 --account extremedata --time 0:20:00\
-	# 	 --gres=gpu:h100:1\
-	# 	.venv/bin/python sqm_demo/tracked_euler.py --grid_n ${NGRID} --euler_plotting True --checkpoint_frequency 50 --euler_chunk_size=100 --compute_svd=False --velocity_x_spread_factor=0.505
-	srun --mem 32G --reservation h100-testing --partition=gpu-h100 --account extremedata --time 0:20:00\
-		 --gres=gpu:h100:1\
-		.venv/bin/python sqm_demo/tracked_euler.py --grid_n ${NGRID} --euler_plotting True --checkpoint_frequency 50 --euler_chunk_size=100 --compute_svd=False --velocity_x_spread_factor=0.495
+test_local: | frames checkpoints
+	$(RUNCMD) --grid_n=128 --euler_plotting=False --compute_svd=True --svd_outfile=svd_64_zero_init.h5
+	$(RUNCMD) --grid_n=128 --euler_plotting=True --compute_svd=True --svd_initial_file=svd_64_zero_init.h5 --svd_outfile=svd_64_init.h5
 
 
-test_gpu_param_y: | frames
-	srun --mem 32G --reservation h100-testing --partition=gpu-h100 --account extremedata --time 0:20:00\
-		 --gres=gpu:h100:1\
-		.venv/bin/python sqm_demo/tracked_euler.py --grid_n ${NGRID} --euler_plotting True --checkpoint_frequency 50 --euler_chunk_size=100 --compute_svd=False --velocity_y_spread_factor=0.9
-	srun --mem 32G --reservation h100-testing --partition=gpu-h100 --account extremedata --time 0:20:00\
-		 --gres=gpu:h100:1\
-		.venv/bin/python sqm_demo/tracked_euler.py --grid_n ${NGRID} --euler_plotting True --checkpoint_frequency 50 --euler_chunk_size=100 --compute_svd=False --velocity_y_spread_factor=1.1
-	srun --mem 32G --reservation h100-testing --partition=gpu-h100 --account extremedata --time 0:20:00\
-		 --gres=gpu:h100:1\
-		.venv/bin/python sqm_demo/tracked_euler.py --grid_n ${NGRID} --euler_plotting True --checkpoint_frequency 50 --euler_chunk_size=100 --compute_svd=False --velocity_y_spread_factor=1.0
-	srun --mem 32G --reservation h100-testing --partition=gpu-h100 --account extremedata --time 0:20:00\
-		 --gres=gpu:h100:1\
-		.venv/bin/python sqm_demo/tracked_euler.py --grid_n ${NGRID} --euler_plotting True --checkpoint_frequency 50 --euler_chunk_size=100 --compute_svd=False --velocity_y_spread_factor=0.95
-	srun --mem 32G --reservation h100-testing --partition=gpu-h100 --account extremedata --time 0:20:00\
-		 --gres=gpu:h100:1\
-		.venv/bin/python sqm_demo/tracked_euler.py --grid_n ${NGRID} --euler_plotting True --checkpoint_frequency 50 --euler_chunk_size=100 --compute_svd=False --velocity_y_spread_factor=1.05
-	srun --mem 32G --reservation h100-testing --partition=gpu-h100 --account extremedata --time 0:20:00\
-		 --gres=gpu:h100:1\
-		.venv/bin/python sqm_demo/tracked_euler.py --grid_n ${NGRID} --euler_plotting True --checkpoint_frequency 50 --euler_chunk_size=100 --compute_svd=False --velocity_y_spread_factor=0.995
-	srun --mem 32G --reservation h100-testing --partition=gpu-h100 --account extremedata --time 0:20:00\
-		 --gres=gpu:h100:1\
-		.venv/bin/python sqm_demo/tracked_euler.py --grid_n ${NGRID} --euler_plotting True --checkpoint_frequency 50 --euler_chunk_size=100 --compute_svd=False --velocity_y_spread_factor=1.005
+
+sweeps=$(addprefix --velocity_x_spread_factor=,0.49 0.50 0.51)
+
+test_sweep: | frames checkpoints
+	$(RUNCMD) --grid_n=128 --euler_plotting=False --compute_svd=True --svd_outfile=svd_64_zero_init.h5 $(sweeps)
+

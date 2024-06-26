@@ -8,20 +8,30 @@ import gc
 jax.config.update('jax_debug_nans', True)
 jax.config.update('jax_enable_x64', True)
 
+# general setup
 GAS_GAMMA = flags.DEFINE_float('gas_gamma', 1.4, 'The gas constant.')
 GRID_N = flags.DEFINE_integer('grid_n', 1024, 'The number of grid points per axis.')
 CFL = flags.DEFINE_float('cfl', 0.2, 'The CFL number.')
 CHUNK_SIZE = flags.DEFINE_integer('euler_chunk_size', 100, 'The chunks to simulate')
-PLOTTING = flags.DEFINE_bool('euler_plotting', False, 'Whether to generate density plots')
 EULER_T_FINAL = flags.DEFINE_float('euler_t_final', 3.0, 'The final time of the simulation.')
-COMPUTE_SVD = flags.DEFINE_bool('compute_svd', True, 'Whether to develop the incremental svd.')
-SVD_OUTFILE = flags.DEFINE_string('svd_outfile', 'test.h5', 'Where to store the incremental svd.')
-CHECKPOINT_FREQUENCY = flags.DEFINE_integer('checkpoint_frequency', 10, '')
-CHECKPOINT_OUTFILE = flags.DEFINE_string('checkpoint_outfile', 'simulation_data.h5', '')
-VELOCITY_X_SPREAD_FACTOR = flags.DEFINE_float('velocity_x_spread_factor', 0.5, 'The spread factor.')
+
+# initial condition
+VELOCITY_X_SPREAD_FACTOR = flags.DEFINE_multi_float('velocity_x_spread_factor', 0.5, 'The spread factor.')
 VELOCITY_X_OFFSET = flags.DEFINE_float('velocity_x_offset', 0.5, 'The velocity_x offset.')
 VELOCITY_Y_SPREAD_FACTOR = flags.DEFINE_float('velocity_y_spread_factor', 1.0, 'The spread factor.')
+
+
+# plotting
+PLOTTING = flags.DEFINE_bool('euler_plotting', False, 'Whether to generate density plots')
 FRAME_BASENAME = flags.DEFINE_string('frame_basename', 'frame', 'The basename of the frame.')
+
+# svd computation
+COMPUTE_SVD = flags.DEFINE_bool('compute_svd', True, 'Whether to develop the incremental svd.')
+SVD_OUTFILE = flags.DEFINE_string('svd_outfile', 'test.h5', 'Where to store the incremental svd.')
+
+# checkpoints
+CHECKPOINT_FREQUENCY = flags.DEFINE_integer('checkpoint_frequency', 10, '')
+CHECKPOINT_OUTFILE = flags.DEFINE_string('checkpoint_outfile', 'simulation_data.h5', '')
 
 
 def conserved_variables(primitive_variables):
@@ -184,101 +194,117 @@ def complete_step(conservative_state, primitive_state, t, dx, CFL):
   return conservative_state, primitive_state, dt+t
 
 
-def nsteps(state, prim_state, t, n, dx, CFL, svd_state):
+# @jax.jit
+def nsteps(state, prim_state, t, dx, CFL, svd_state):
 
   def body_fun(col, _):
     state, prim_state, t = col
     col_new = complete_step(state, prim_state, t, dx, CFL)
     return col_new, col_new
 
-  logging.info('Start  %i steps integration at t=%.2e', n, t)
-  _, (state, prim_state, t) = jax.lax.scan(body_fun, (state, prim_state, t), jnp.arange(n))
-  logging.info('Finish %i steps integration to t=%.2e', n, t[-1])
+  # logging.info('Start  %i steps integration at t=%.2e', CHUNK_SIZE.value, t)
+  _, (state, prim_state, t) = jax.lax.scan(body_fun, (state, prim_state, t), jnp.arange(CHUNK_SIZE.value))
+  # logging.info('Finish %i steps integration to t=%.2e', CHUNK_SIZE.value, t[-1])
   last_state = state[-1]
   last_prim_state = prim_state[-1]
-  prim_state_flat = jnp.reshape(prim_state, (n, -1)).T
-  del state, prim_state
-  gc.collect()
-  logging.info('Start incremental svd update with new chunk size %d, %d', *prim_state_flat.shape)
-  svd_state = isvd.update_and_truncate(svd_state, prim_state_flat)
-  logging.info('Incremental svd update complete')
+  prim_state_flat = jnp.reshape(prim_state, (CHUNK_SIZE.value, -1)).T
+  # del state, prim_state
+  # gc.collect()
+  # logging.info('Start incremental svd update with new chunk size %d, %d', *prim_state_flat.shape)
+  # svd_state = isvd.update_and_truncate(svd_state, prim_state_flat)
+  svd_state = isvd.svd_new_chunk_autotruncate(svd_state, prim_state_flat)
+  # logging.info('Incremental svd update complete')
   return last_state, last_prim_state, t[-1], svd_state
 
 
-def nsteps_fori(state, prim_state, t, n, dx, CFL, svd_state):
+def nsteps_fori(state, prim_state, t, dx, CFL, svd_state):
 
   def body_fun(_, col):
     state, prim_state, t = col
     col_new = complete_step(state, prim_state, t, dx, CFL)
     return col_new
 
-  logging.info('Start  %i steps integration at t=%.2e', n, t)
-  state, prim_state, t = jax.lax.fori_loop(0, n, body_fun, (state, prim_state, t))
-  logging.info('Finish %i steps integration to t=%.2e', n, t)
+  logging.info('Start  %i steps integration at t=%.2e', CHUNK_SIZE.value, t)
+  state, prim_state, t = jax.lax.fori_loop(0, CHUNK_SIZE.value, body_fun, (state, prim_state, t))
+  logging.info('Finish %i steps integration to t=%.2e', CHUNK_SIZE.value, t)
   last_state = state
   last_prim_state = prim_state
   return last_state, last_prim_state, t, svd_state
 
 
-def main(_):
+def grid():
   N = GRID_N.value
   dx=2/N
   nx = N + 1
-  x1 = jnp.linspace(dx/2-1, 1-0.5*dx, nx)
-  x2 = jnp.linspace(dx/2-1, 1-0.5*dx, nx)
+  x1 = jnp.linspace(dx/2-1, 1-dx/2, nx)
+  x2 = jnp.linspace(dx/2-1, 1-dx/2, nx)
   Y, X = jnp.meshgrid(x1, x2)
-  T = EULER_T_FINAL.value
+  return nx, dx, X, Y
+
+
+def initialize(x_spread, X, Y, dx):
   c_density = 80
   c_pressure = 80
   B_density = jnp.tanh(c_density*Y + c_density/2)-jnp.tanh(c_density*Y-c_density/2)
   B_vx = jnp.tanh(c_pressure*Y + c_pressure/2)-jnp.tanh(c_pressure*Y-c_pressure/2)
   density =  0.5+0.75*B_density
   pressure = 1 * jnp.ones(X.shape)
-  velocity_x = VELOCITY_X_SPREAD_FACTOR.value*(B_vx-1) + VELOCITY_X_OFFSET.value
+  velocity_x = x_spread*(B_vx-1) + VELOCITY_X_OFFSET.value
   velocity_y = VELOCITY_Y_SPREAD_FACTOR.value*0.1*jnp.sin(2*jnp.pi*X)
   prim_state=jnp.vstack((density, velocity_x, velocity_y, pressure))
   state = conserved_variables(prim_state)
+  return state, prim_state, dx
+
+
+def main(_):
+  T = EULER_T_FINAL.value
+  nx, dx, X, Y = grid()
+  svd_state = isvd.load_or_create_initial_svd(nx**2*4)
   fig, ax = plt.subplots()
-  img = ax.imshow(jnp.zeros((N, N)), animated=True, vmin=0.6, vmax=2.1)
-  _ = fig.colorbar(img, ax=ax)
-  plt.pause(0.5)
-  plt.grid(False)
-  NJAX = CHUNK_SIZE.value
-  svd_state = isvd.initialize_empty_svd(nx**2*4)
-  checkpoints = []
-  checkpoint_times = []
-
-  t=0
-  for i in range(10000):
-    if COMPUTE_SVD.value:
-      state, prim_state, t, svd_state = nsteps(state, prim_state, t, NJAX, dx, CFL.value, svd_state)
-    else:
-      state, prim_state, t, svd_state = nsteps_fori(state, prim_state, t, NJAX, dx, CFL.value, svd_state)
-    logging.info('Step: %d, Timesteps: %d, Simulated time: %.2e', i+1, NJAX*(i+1), t)
-    logging.info('Datasize: %.6e GB', NJAX*(i+1)*nx**2*4*8*1e-9)
-    logging.info('SVD size: %.6e GB', (NJAX*(i+1)+nx**2*4)*flags.FLAGS.svd_max_rank*8*1e-9 )
-    if PLOTTING.value:
-      img.set_array(jnp.minimum(2.1, jnp.maximum(0.5, prim_state[:N, :N].T)))
-      img.autoscale()
-      plt.pause(0.1)
-      plt.savefig(f'frames/{FRAME_BASENAME.value}_{i:03d}.png')
-    if t > T:
-      break
-    if i % CHECKPOINT_FREQUENCY.value == 0:
-      checkpoints.append(prim_state)
-      checkpoint_times.append(t)
-
-
-  isvd.store_svd(svd_state, jnp.zeros(nx**2*4), SVD_OUTFILE.value)
-  with h5py.File(CHECKPOINT_OUTFILE.value, "w") as f:
-    checkpoints = jnp.stack(checkpoints)
-    checkpoints = jnp.reshape(checkpoints, (checkpoints.shape[0], -1))
-    f.create_dataset("data", data=checkpoints.T)
-    f.create_dataset("times", data=jnp.stack(checkpoint_times))
-  
-
   if PLOTTING.value:
-    plt.savefig(f'frames/{FRAME_BASENAME.value}_final.png')
+    img = ax.imshow(jnp.zeros((GRID_N.value, GRID_N.value)), animated=True, vmin=0.6, vmax=2.1)
+    _ = fig.colorbar(img, ax=ax)
+    plt.pause(0.5)
+    plt.grid(False)
+
+
+  for vel_x_spread in VELOCITY_X_SPREAD_FACTOR.value:
+    logging.info("Run simulation with velocity x spread: %s", vel_x_spread)
+    state, prim_state, dx = initialize(vel_x_spread, X, Y, dx)
+    checkpoints = []
+    checkpoint_times = []
+
+    t=0
+    i=0
+    while t < T:
+      if COMPUTE_SVD.value:
+        state, prim_state, t, svd_state = nsteps(state, prim_state, t, dx, CFL.value, svd_state)
+      else:
+        state, prim_state, t, svd_state = nsteps_fori(state, prim_state, t, dx, CFL.value, svd_state)
+      logging.info('Step: %d, Timesteps: %d, Simulated time: %.2e', i+1, CHUNK_SIZE.value*(i+1), t)
+      logging.info('Datasize: %.6e GB', svd_state.V.shape[0]*nx**2*4*8*1e-9)
+      logging.info('SVD size: %.6e GB', (CHUNK_SIZE.value*(i+1)+nx**2*4)*flags.FLAGS.svd_max_rank*8*1e-9 )
+      if PLOTTING.value:
+        img.set_array(jnp.minimum(2.1, jnp.maximum(0.5, prim_state[:GRID_N.value, :GRID_N.value].T)))
+        img.autoscale()
+        plt.pause(0.1)
+        plt.savefig(f'frames/{FRAME_BASENAME.value}_{i:03d}.png')
+      if i % CHECKPOINT_FREQUENCY.value == 0:
+        checkpoints.append(prim_state)
+        checkpoint_times.append(t)
+      i = i+1
+
+
+    isvd.store_svd(svd_state, jnp.zeros(nx**2*4), SVD_OUTFILE.value)
+    with h5py.File(f"checkpoints/{CHECKPOINT_OUTFILE.value}_{vel_x_spread:.3f}", "w") as f:
+      checkpoints = jnp.stack(checkpoints)
+      checkpoints = jnp.reshape(checkpoints, (checkpoints.shape[0], -1))
+      f.create_dataset("data", data=checkpoints.T)
+      f.create_dataset("times", data=jnp.stack(checkpoint_times))
+    
+
+    if PLOTTING.value:
+      plt.savefig(f'frames/{FRAME_BASENAME.value}_final.png')
 
 
 if __name__ == "__main__":

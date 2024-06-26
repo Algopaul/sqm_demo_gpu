@@ -27,3 +27,4 @@ poetry.lock
 
 # Repo specific
 frames/
+checkpoints/
