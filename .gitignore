@@ -5,6 +5,7 @@
 __pycache__/
 .cache/
 .venv/
+.nogpuvenv/
 
 # Poetry, setuptools, PyPI distribution artifacts.
 /*.egg-info
@@ -28,3 +29,4 @@ poetry.lock
 # Repo specific
 frames/
 checkpoints/
+svd_files/

@@ -19,11 +19,16 @@ def load_or_create_initial_svd(state_dim):
     return initialize_empty_svd(state_dim)
   else:
     logging.info("Loading initial svd.")
-    with h5py.File(SVD_INITIAL_FILE.value, 'r') as f:
-      U = np.asarray(f['U'])
-      S = np.asarray(f['S'])
-      V = np.asarray(f['V'])
-      return IncrementalSVDState(U, S, V)
+    return load_svd(SVD_INITIAL_FILE.value)
+
+
+def load_svd(filename):
+  with h5py.File(filename, 'r') as f:
+    U = np.asarray(f['U'])
+    S = np.asarray(f['S'])
+    V = np.asarray(f['V'])
+  return IncrementalSVDState(U, S, V)
+
 
 
 

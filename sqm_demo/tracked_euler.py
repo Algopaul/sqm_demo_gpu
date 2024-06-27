@@ -31,7 +31,7 @@ SVD_OUTFILE = flags.DEFINE_string('svd_outfile', 'test.h5', 'Where to store the 
 
 # checkpoints
 CHECKPOINT_FREQUENCY = flags.DEFINE_integer('checkpoint_frequency', 10, '')
-CHECKPOINT_OUTFILE = flags.DEFINE_string('checkpoint_outfile', 'simulation_data.h5', '')
+CHECKPOINT_OUTFILE = flags.DEFINE_string('checkpoint_outfile', 'checkpoints', '')
 
 
 def conserved_variables(primitive_variables):
@@ -194,7 +194,7 @@ def complete_step(conservative_state, primitive_state, t, dx, CFL):
   return conservative_state, primitive_state, dt+t
 
 
-# @jax.jit
+@jax.jit
 def nsteps(state, prim_state, t, dx, CFL, svd_state):
 
   def body_fun(col, _):
@@ -268,7 +268,7 @@ def main(_):
     plt.grid(False)
 
 
-  for vel_x_spread in VELOCITY_X_SPREAD_FACTOR.value:
+  for i_param, vel_x_spread in enumerate(VELOCITY_X_SPREAD_FACTOR.value):
     logging.info("Run simulation with velocity x spread: %s", vel_x_spread)
     state, prim_state, dx = initialize(vel_x_spread, X, Y, dx)
     checkpoints = []
@@ -294,13 +294,20 @@ def main(_):
         checkpoint_times.append(t)
       i = i+1
 
-
-    isvd.store_svd(svd_state, jnp.zeros(nx**2*4), SVD_OUTFILE.value)
-    with h5py.File(f"checkpoints/{CHECKPOINT_OUTFILE.value}_{vel_x_spread:.3f}", "w") as f:
+    logging.info(f'Simulation #{i:03d} complete')
+    logging.info('Storing checkpoints')
+    with h5py.File(f"checkpoints/{CHECKPOINT_OUTFILE.value}_{vel_x_spread:.3f}.h5", "w") as f:
       checkpoints = jnp.stack(checkpoints)
       checkpoints = jnp.reshape(checkpoints, (checkpoints.shape[0], -1))
       f.create_dataset("data", data=checkpoints.T)
       f.create_dataset("times", data=jnp.stack(checkpoint_times))
+
+    del checkpoints
+
+    logging.info('Storing svd')
+    isvd.store_svd(svd_state, jnp.zeros(nx**2*4), f"svd_files/{SVD_OUTFILE.value}_{i_param}.h5")
+
+    gc.collect()
     
 
     if PLOTTING.value:

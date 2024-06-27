@@ -10,6 +10,9 @@ frames:
 checkpoints:
 	mkdir -p checkpoints
 
+svd_files:
+	mkdir -p svd_files
+
 test:
 	srun --mem 32G --account extremedata --time 1:00:00\
 		.venv/bin/python sqm_demo/tracked_euler.py --grid_n 512 --euler_plotting True --svd_outfile euler_512_svd.h5 --checkpoint_frequency 20 --checkpoint_outfile euler_512_checkpoints.h5
@@ -34,7 +37,7 @@ test_gpu_1024_noplotting:
 
 
 NGRID = 1024
-SLURMPARAMS = --mem 32G --reservation h100-testing --partition=gpu-h100 --account extremedata --time 0:20:00 --gres=gpu:h100:1
+SLURMPARAMS = --mem 64G --reservation h100-testing --partition=gpu-h100 --account extremedata --time 7:30:00 --gres=gpu:h100:1
 SWEEP=--grid_n=1024 --euler_plotting=True --compute_svd=False --euler_chunk_size=100
 RUNCMD = .venv/bin/python sqm_demo/tracked_euler.py 
 
@@ -61,8 +64,21 @@ test_local: | frames checkpoints
 
 
 
-sweeps=$(addprefix --velocity_x_spread_factor=,0.49 0.50 0.51)
+# sweeps=$(addprefix --velocity_x_spread_factor=, 0.49 0.51 0.492 0.506 0.494 0.502 0.496 0.498 0.504 0.508)
+sweeps=$(addprefix --velocity_x_spread_factor=,0.490 0.491 0.492 0.493 0.494 0.495 0.496 0.497 0.498 0.499 0.501 0.502 0.503 0.504 0.505 0.506 0.507 0.508 0.509 0.510)
+test_sweep: | frames checkpoints svd_files
+	srun $(SLURMPARAMS) $(RUNCMD) --grid_n=1024 --euler_plotting=False --compute_svd=True --svd_outfile=svd_1024_small_sweep_20 $(sweeps) --checkpoint_outfile=small_sweep --checkpoint_frequency=10
 
-test_sweep: | frames checkpoints
-	$(RUNCMD) --grid_n=128 --euler_plotting=False --compute_svd=True --svd_outfile=svd_64_zero_init.h5 $(sweeps)
+
+reconstruct_from_svd:
+	.nogpuvenv/bin/python sqm_demo/reconstruct_snapshot.py --svd_filename=svd_files/svd_1024_small_sweep_0.h5 --state_idx=-1 --state_idx=5000 --outfile rec_0.h5
+	.nogpuvenv/bin/python sqm_demo/reconstruct_snapshot.py --svd_filename=svd_files/svd_1024_small_sweep_3.h5 --state_idx=-1 --state_idx=5000 --outfile rec_3.h5
+
+
+WD=/scratch/ps030/Code/sqm_demo/checkpoints
+
+collect_sweep:
+	h5util collect_virtual_dataset --output_files datasweep.h5 --data_fields train_data data --input_files $(addsuffix .h5,$(addprefix $(WD)/small_sweep_, 0.490 0.510 0.492 0.506 0.494 0.502 0.496 0.498 0.504 0.508))
+	h5util collect_virtual_dataset --output_files datasweep.h5 --data_fields val_data data --input_files $(addsuffix .h5,$(addprefix $(WD)/small_sweep_, 0.490 0.510 0.492 0.506 0.494 0.502 0.496 0.498 0.504 0.508))
+	h5util collect_virtual_dataset --output_files datasweep.h5 --data_fields test_data data --input_files $(addsuffix .h5,$(addprefix $(WD)/small_sweep_, 0.490 0.510 0.492 0.506 0.494 0.502 0.496 0.498 0.504 0.508))
 
