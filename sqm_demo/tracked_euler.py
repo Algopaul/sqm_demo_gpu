@@ -5,6 +5,7 @@ import jax
 import incremental_svd as isvd
 import h5py
 import gc
+import tracemalloc
 jax.config.update('jax_debug_nans', True)
 jax.config.update('jax_enable_x64', True)
 
@@ -267,13 +268,14 @@ def main(_):
     plt.pause(0.5)
     plt.grid(False)
 
+  tracemalloc.start()
 
   for i_param, vel_x_spread in enumerate(VELOCITY_X_SPREAD_FACTOR.value):
     logging.info("Run simulation with velocity x spread: %s", vel_x_spread)
     state, prim_state, dx = initialize(vel_x_spread, X, Y, dx)
     checkpoints = []
     checkpoint_times = []
-
+    
     t=0
     i=0
     while t < T:
@@ -294,20 +296,35 @@ def main(_):
         checkpoint_times.append(t)
       i = i+1
 
-    logging.info(f'Simulation #{i:03d} complete')
+    logging.info(f'Simulation #{i_param} complete')
     logging.info('Storing checkpoints')
-    with h5py.File(f"checkpoints/{CHECKPOINT_OUTFILE.value}_{vel_x_spread:.3f}.h5", "w") as f:
+    with h5py.File(f"checkpoints/{CHECKPOINT_OUTFILE.value}_{i_param}.h5", "w") as f:
       checkpoints = jnp.stack(checkpoints)
       checkpoints = jnp.reshape(checkpoints, (checkpoints.shape[0], -1))
       f.create_dataset("data", data=checkpoints.T)
       f.create_dataset("times", data=jnp.stack(checkpoint_times))
 
+    snapshot = tracemalloc.take_snapshot() 
+    top_stats = snapshot.statistics('lineno') 
+    logging.info("Snapshot before gc")
+    for stat in top_stats[:10]: 
+      logging.info(stat)
+
     del checkpoints
+    del checkpoint_times
+    del state
+    del prim_state
 
     logging.info('Storing svd')
     isvd.store_svd(svd_state, jnp.zeros(nx**2*4), f"svd_files/{SVD_OUTFILE.value}_{i_param}.h5")
 
+
     gc.collect()
+    snapshot = tracemalloc.take_snapshot() 
+    top_stats = snapshot.statistics('lineno') 
+    logging.info("Snapshot before gc")
+    for stat in top_stats[:10]: 
+      logging.info(stat)
     
 
     if PLOTTING.value:
