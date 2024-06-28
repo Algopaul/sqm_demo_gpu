@@ -67,7 +67,13 @@ test_local: | frames checkpoints
 # sweeps=$(addprefix --velocity_x_spread_factor=, 0.49 0.51 0.492 0.506 0.494 0.502 0.496 0.498 0.504 0.508)
 sweeps=$(addprefix --velocity_x_spread_factor=,0.490 0.491 0.492 0.493 0.494 0.495 0.496 0.497 0.498 0.499 0.501 0.502 0.503 0.504 0.505 0.506 0.507 0.508 0.509 0.510)
 test_sweep: | frames checkpoints svd_files
-	srun $(SLURMPARAMS) $(RUNCMD) --grid_n=1024 --euler_plotting=False --compute_svd=True --svd_outfile=svd_1024_small_sweep_20 $(sweeps) --checkpoint_outfile=small_sweep --checkpoint_frequency=10
+	srun $(SLURMPARAMS) $(RUNCMD) --grid_n=1024 --euler_plotting=False --compute_svd=True --svd_outfile=svd_1024_small_sweep_20 $(sweeps) --checkpoint_outfile=small_sweep_20 --checkpoint_frequency=10
+
+
+supersmall_sweeps=$(addprefix --velocity_x_spread_factor=,0.4990 0.4991 0.4992 0.4993 0.4994 0.4995 0.4996 0.4997 0.4998 0.4999 0.5001 0.5002 0.5003 0.5004 0.5005 0.5006 0.5007 0.5008 0.5009 0.5010)
+
+test_supersmall_sweep: | frames checkpoints svd_files
+	srun $(SLURMPARAMS) $(RUNCMD) --grid_n=1024 --euler_plotting=False --compute_svd=True --svd_outfile=svd_1024_super_small_sweep_20 $(supersmall_sweeps) --checkpoint_outfile=super_small_sweep_20 --checkpoint_frequency=20
 
 
 reconstruct_from_svd:
