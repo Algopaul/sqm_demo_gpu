@@ -6,8 +6,11 @@ import incremental_svd as isvd
 import h5py
 import gc
 import tracemalloc
+import time
 jax.config.update('jax_debug_nans', True)
 jax.config.update('jax_enable_x64', True)
+
+PATH_STEM = '/projects/extremedata/pstmp/'
 
 # general setup
 GAS_GAMMA = flags.DEFINE_float('gas_gamma', 1.4, 'The gas constant.')
@@ -269,6 +272,7 @@ def main(_):
     plt.grid(False)
 
   tracemalloc.start()
+  logging.info(jax.devices())
 
   for i_param, vel_x_spread in enumerate(VELOCITY_X_SPREAD_FACTOR.value):
     logging.info("Run simulation with velocity x spread: %s", vel_x_spread)
@@ -285,7 +289,7 @@ def main(_):
         state, prim_state, t, svd_state = nsteps_fori(state, prim_state, t, dx, CFL.value, svd_state)
       logging.info('Step: %d, Timesteps: %d, Simulated time: %.2e', i+1, CHUNK_SIZE.value*(i+1), t)
       logging.info('Datasize: %.6e GB', svd_state.V.shape[0]*nx**2*4*8*1e-9)
-      logging.info('SVD size: %.6e GB', (CHUNK_SIZE.value*(i+1)+nx**2*4)*flags.FLAGS.svd_max_rank*8*1e-9 )
+      logging.info('SVD size: %.6e GB', (svd_state.V.shape[0]+nx**2*4)*flags.FLAGS.svd_max_rank*8*1e-9 )
       if PLOTTING.value:
         img.set_array(jnp.minimum(2.1, jnp.maximum(0.5, prim_state[:GRID_N.value, :GRID_N.value].T)))
         img.autoscale()
@@ -296,9 +300,11 @@ def main(_):
         checkpoint_times.append(t)
       i = i+1
 
+    gc.collect()
+
     logging.info(f'Simulation #{i_param} complete')
     logging.info('Storing checkpoints')
-    with h5py.File(f"checkpoints/{CHECKPOINT_OUTFILE.value}_{i_param}.h5", "w") as f:
+    with h5py.File(f"{PATH_STEM}checkpoints/{CHECKPOINT_OUTFILE.value}_{i_param}.h5", "w") as f:
       checkpoints = jnp.stack(checkpoints)
       checkpoints = jnp.reshape(checkpoints, (checkpoints.shape[0], -1))
       f.create_dataset("data", data=checkpoints.T)
@@ -315,8 +321,11 @@ def main(_):
     del state
     del prim_state
 
-    logging.info('Storing svd')
-    isvd.store_svd(svd_state, jnp.zeros(nx**2*4), f"svd_files/{SVD_OUTFILE.value}_{i_param}.h5")
+    if COMPUTE_SVD.value:
+      logging.info('Storing svd')
+      isvd.store_svd(svd_state, jnp.zeros(nx**2*4), f"{PATH_STEM}svd_files/{SVD_OUTFILE.value}_{i_param}.h5")
+
+    time.sleep(10)
 
 
     gc.collect()

@@ -70,6 +70,10 @@ test_sweep: | frames checkpoints svd_files
 	srun $(SLURMPARAMS) $(RUNCMD) --grid_n=1024 --euler_plotting=False --compute_svd=True --svd_outfile=svd_1024_small_sweep_20 $(sweeps) --checkpoint_outfile=small_sweep_20 --checkpoint_frequency=10
 
 
+test_petabyte_sweep: | frames checkpoints svd_files
+	srun $(SLURMPARAMS) $(RUNCMD) --grid_n=1600 --euler_plotting=False --euler_chunk_size=50 --compute_svd=False --svd_outfile=svd_1024_small_sweep_20 $(sweeps) --checkpoint_outfile=small_sweep_1024_20 --checkpoint_frequency=20
+
+
 supersmall_sweeps=$(addprefix --velocity_x_spread_factor=,0.4990 0.4991 0.4992 0.4993 0.4994 0.4995 0.4996 0.4997 0.4998 0.4999 0.5001 0.5002 0.5003 0.5004 0.5005 0.5006 0.5007 0.5008 0.5009 0.5010)
 
 test_supersmall_sweep: | frames checkpoints svd_files
@@ -87,4 +91,10 @@ collect_sweep:
 	h5util collect_virtual_dataset --output_files datasweep.h5 --data_fields train_data data --input_files $(addsuffix .h5,$(addprefix $(WD)/small_sweep_, 0.490 0.510 0.492 0.506 0.494 0.502 0.496 0.498 0.504 0.508))
 	h5util collect_virtual_dataset --output_files datasweep.h5 --data_fields val_data data --input_files $(addsuffix .h5,$(addprefix $(WD)/small_sweep_, 0.490 0.510 0.492 0.506 0.494 0.502 0.496 0.498 0.504 0.508))
 	h5util collect_virtual_dataset --output_files datasweep.h5 --data_fields test_data data --input_files $(addsuffix .h5,$(addprefix $(WD)/small_sweep_, 0.490 0.510 0.492 0.506 0.494 0.502 0.496 0.498 0.504 0.508))
+
+
+test_trajectory_checkpoints:
+	srun $(SLURMPARAMS) $(RUNCMD) --grid_n=1024 --euler_plotting=False --compute_svd=False --svd_outfile=None --velocity_x_spread_factor=0.500 --checkpoint_outfile=test_trajectory --checkpoint_frequency=5
+
+
 

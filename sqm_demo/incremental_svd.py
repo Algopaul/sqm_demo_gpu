@@ -143,4 +143,5 @@ def store_svd(iss, shift, filename, runtime=-1.0):
     file.create_dataset('shift', data=shift)
     # file.create_dataset('rejected_svals', data=np.array(iss.mu))
     file.create_dataset('runtime', data=np.array([runtime]))
+    file.close()
   pass
