@@ -16,18 +16,23 @@ IncrementalSVDState = namedtuple("IncrementalSVDState", "U S V")
 
 def load_or_create_initial_svd(state_dim):
   if SVD_INITIAL_FILE.value == '':
-    return initialize_empty_svd(state_dim)
+    return initialize_empty_svd(state_dim), 0
   else:
     logging.info("Loading initial svd.")
-    return load_svd(SVD_INITIAL_FILE.value)
+    return load_svd(SVD_INITIAL_FILE.value, set_V_id=True)
 
 
-def load_svd(filename):
+def load_svd(filename, set_V_id=False):
   with h5py.File(filename, 'r') as f:
     U = np.asarray(f['U'])
     S = np.asarray(f['S'])
-    V = np.asarray(f['V'])
-  return IncrementalSVDState(U, S, V)
+    if set_V_id:
+      V = np.eye(S.shape[0])
+      nn=f['V'].shape[1]-S.shape[0] # pyright: ignore
+    else:
+      V = np.asarray(f['V'])
+      nn = V.shape[1]
+  return IncrementalSVDState(U, S, V), nn
 
 
 

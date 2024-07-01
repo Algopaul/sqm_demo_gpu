@@ -10,7 +10,8 @@ import time
 jax.config.update('jax_debug_nans', True)
 jax.config.update('jax_enable_x64', True)
 
-PATH_STEM = '/projects/extremedata/pstmp/'
+# PATH_STEM = '/projects/extremedata/pstmp/'
+PATH_STEM = ''
 
 # general setup
 GAS_GAMMA = flags.DEFINE_float('gas_gamma', 1.4, 'The gas constant.')
@@ -206,18 +207,11 @@ def nsteps(state, prim_state, t, dx, CFL, svd_state):
     col_new = complete_step(state, prim_state, t, dx, CFL)
     return col_new, col_new
 
-  # logging.info('Start  %i steps integration at t=%.2e', CHUNK_SIZE.value, t)
   _, (state, prim_state, t) = jax.lax.scan(body_fun, (state, prim_state, t), jnp.arange(CHUNK_SIZE.value))
-  # logging.info('Finish %i steps integration to t=%.2e', CHUNK_SIZE.value, t[-1])
   last_state = state[-1]
   last_prim_state = prim_state[-1]
   prim_state_flat = jnp.reshape(prim_state, (CHUNK_SIZE.value, -1)).T
-  # del state, prim_state
-  # gc.collect()
-  # logging.info('Start incremental svd update with new chunk size %d, %d', *prim_state_flat.shape)
-  # svd_state = isvd.update_and_truncate(svd_state, prim_state_flat)
   svd_state = isvd.svd_new_chunk_autotruncate(svd_state, prim_state_flat)
-  # logging.info('Incremental svd update complete')
   return last_state, last_prim_state, t[-1], svd_state
 
 
@@ -263,7 +257,7 @@ def initialize(x_spread, X, Y, dx):
 def main(_):
   T = EULER_T_FINAL.value
   nx, dx, X, Y = grid()
-  svd_state = isvd.load_or_create_initial_svd(nx**2*4)
+  svd_state, n_start = isvd.load_or_create_initial_svd(nx**2*4)
   fig, ax = plt.subplots()
   if PLOTTING.value:
     img = ax.imshow(jnp.zeros((GRID_N.value, GRID_N.value)), animated=True, vmin=0.6, vmax=2.1)
@@ -288,8 +282,9 @@ def main(_):
       else:
         state, prim_state, t, svd_state = nsteps_fori(state, prim_state, t, dx, CFL.value, svd_state)
       logging.info('Step: %d, Timesteps: %d, Simulated time: %.2e', i+1, CHUNK_SIZE.value*(i+1), t)
-      logging.info('Datasize: %.6e GB', svd_state.V.shape[0]*nx**2*4*8*1e-9)
-      logging.info('SVD size: %.6e GB', (svd_state.V.shape[0]+nx**2*4)*flags.FLAGS.svd_max_rank*8*1e-9 )
+      logging.info('Datasize: %.6e GB', (n_start+svd_state.V.shape[0])*nx**2*4*8*1e-9)
+      logging.info('SVD size: %.6e GB', (n_start+svd_state.V.shape[0]+nx**2*4)*flags.FLAGS.svd_max_rank*8*1e-9 )
+      logging.info('GPU-SVD size: %.6e GB', (svd_state.V.shape[0]+nx**2*4)*flags.FLAGS.svd_max_rank*8*1e-9 )
       if PLOTTING.value:
         img.set_array(jnp.minimum(2.1, jnp.maximum(0.5, prim_state[:GRID_N.value, :GRID_N.value].T)))
         img.autoscale()
@@ -321,9 +316,6 @@ def main(_):
     del state
     del prim_state
 
-    if COMPUTE_SVD.value:
-      logging.info('Storing svd')
-      isvd.store_svd(svd_state, jnp.zeros(nx**2*4), f"{PATH_STEM}svd_files/{SVD_OUTFILE.value}_{i_param}.h5")
 
     time.sleep(10)
 
@@ -338,6 +330,10 @@ def main(_):
 
     if PLOTTING.value:
       plt.savefig(f'frames/{FRAME_BASENAME.value}_final.png')
+
+  if COMPUTE_SVD.value:
+    logging.info('Storing svd')
+    isvd.store_svd(svd_state, jnp.zeros(nx**2*4), f"{PATH_STEM}svd_files/{SVD_OUTFILE.value}.h5")
 
 
 if __name__ == "__main__":

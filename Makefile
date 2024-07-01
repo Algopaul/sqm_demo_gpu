@@ -97,4 +97,13 @@ test_trajectory_checkpoints:
 	srun $(SLURMPARAMS) $(RUNCMD) --grid_n=1024 --euler_plotting=False --compute_svd=False --svd_outfile=None --velocity_x_spread_factor=0.500 --checkpoint_outfile=test_trajectory --checkpoint_frequency=5
 
 
+testrun: | frames checkpoints svd_files
+	.venv/bin/python sqm_demo/tracked_euler.py --grid_n 32 --svd_outfile svd_1 --velocity_x_spread_factor=0.4
+	.venv/bin/python sqm_demo/tracked_euler.py --grid_n 32 --svd_outfile svd_2a --velocity_x_spread_factor=0.6 --svd_initial_file=svd_files/svd_1.h5
+	.venv/bin/python sqm_demo/tracked_euler.py --grid_n 32 --svd_outfile svd_2 --velocity_x_spread_factor=0.4 --velocity_x_spread_factor=0.6
 
+update_svd:
+	.venv/bin/python sqm_demo/update_svd.py \
+		--svd_source_file_old=svd_files/svd_1.h5 \
+		--svd_source_file_new=svd_files/svd_2a.h5 \
+		--svd_target_file=svd_files/svd_2b.h5 \
