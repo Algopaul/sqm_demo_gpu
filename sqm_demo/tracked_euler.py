@@ -10,8 +10,7 @@ import time
 jax.config.update('jax_debug_nans', True)
 jax.config.update('jax_enable_x64', True)
 
-# PATH_STEM = '/projects/extremedata/pstmp/'
-PATH_STEM = ''
+PATH_STEM = '/projects/extremedata/pstmp/'
 
 # general setup
 GAS_GAMMA = flags.DEFINE_float('gas_gamma', 1.4, 'The gas constant.')
@@ -37,6 +36,7 @@ SVD_OUTFILE = flags.DEFINE_string('svd_outfile', 'test.h5', 'Where to store the 
 # checkpoints
 CHECKPOINT_FREQUENCY = flags.DEFINE_integer('checkpoint_frequency', 10, '')
 CHECKPOINT_OUTFILE = flags.DEFINE_string('checkpoint_outfile', 'checkpoints', '')
+STORE_CHECKPOINTS = flags.DEFINE_bool('store_checkpoints', True, 'Whether to store checkpoints')
 
 
 def conserved_variables(primitive_variables):
@@ -233,7 +233,7 @@ def nsteps_fori(state, prim_state, t, dx, CFL, svd_state):
 def grid():
   N = GRID_N.value
   dx=2/N
-  nx = N + 1
+  nx = N
   x1 = jnp.linspace(dx/2-1, 1-dx/2, nx)
   x2 = jnp.linspace(dx/2-1, 1-dx/2, nx)
   Y, X = jnp.meshgrid(x1, x2)
@@ -290,43 +290,28 @@ def main(_):
         img.autoscale()
         plt.pause(0.1)
         plt.savefig(f'frames/{FRAME_BASENAME.value}_{i:03d}.png')
-      if i % CHECKPOINT_FREQUENCY.value == 0:
-        checkpoints.append(prim_state)
-        checkpoint_times.append(t)
+      if STORE_CHECKPOINTS.value:
+        if i % CHECKPOINT_FREQUENCY.value == 0:
+          checkpoints.append(prim_state)
+          checkpoint_times.append(t)
       i = i+1
 
+    del state
+    del prim_state
+    time.sleep(5)
+    gc.collect()
+    time.sleep(5)
     gc.collect()
 
     logging.info(f'Simulation #{i_param} complete')
-    logging.info('Storing checkpoints')
-    with h5py.File(f"{PATH_STEM}checkpoints/{CHECKPOINT_OUTFILE.value}_{i_param}.h5", "w") as f:
-      checkpoints = jnp.stack(checkpoints)
-      checkpoints = jnp.reshape(checkpoints, (checkpoints.shape[0], -1))
-      f.create_dataset("data", data=checkpoints.T)
-      f.create_dataset("times", data=jnp.stack(checkpoint_times))
+    if STORE_CHECKPOINTS.value:
+      logging.info('Storing checkpoints')
+      with h5py.File(f"{PATH_STEM}checkpoints/{CHECKPOINT_OUTFILE.value}_{i_param}.h5", "w") as f:
+        checkpoints = jnp.stack(checkpoints)
+        checkpoints = jnp.reshape(checkpoints, (checkpoints.shape[0], -1))
+        f.create_dataset("data", data=checkpoints.T)
+        f.create_dataset("times", data=jnp.stack(checkpoint_times))
 
-    snapshot = tracemalloc.take_snapshot() 
-    top_stats = snapshot.statistics('lineno') 
-    logging.info("Snapshot before gc")
-    for stat in top_stats[:10]: 
-      logging.info(stat)
-
-    del checkpoints
-    del checkpoint_times
-    del state
-    del prim_state
-
-
-    time.sleep(10)
-
-
-    gc.collect()
-    snapshot = tracemalloc.take_snapshot() 
-    top_stats = snapshot.statistics('lineno') 
-    logging.info("Snapshot before gc")
-    for stat in top_stats[:10]: 
-      logging.info(stat)
-    
 
     if PLOTTING.value:
       plt.savefig(f'frames/{FRAME_BASENAME.value}_final.png')
