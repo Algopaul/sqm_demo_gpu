@@ -7,13 +7,14 @@ SVD_SOURCE_FILE_OLD = flags.DEFINE_string('svd_source_file_old', '', 'The svd to
 SVD_SOURCE_FILE_NEW = flags.DEFINE_string('svd_source_file_new', '', 'The svd to load (h5 file with fields U, S, V)')
 SVD_TARGET_FILE = flags.DEFINE_string('svd_target_file', '', 'The svd to produce (h5 file with fields U, S, V=vstack([V_old@PSI, V])')
 
+PATH_STEM = flags.DEFINE_string('path_stem', '', 'Where to store the svd checkpoints')
 
 def main(_):
   logging.info(SVD_SOURCE_FILE_OLD.value)
   logging.info(SVD_SOURCE_FILE_NEW.value)
   logging.info(SVD_TARGET_FILE.value)
-  f1=h5py.File(SVD_SOURCE_FILE_OLD.value, 'r')
-  f2=h5py.File(SVD_SOURCE_FILE_NEW.value, 'r')
+  f1=h5py.File(PATH_STEM.value+SVD_SOURCE_FILE_OLD.value+'.h5', 'r')
+  f2=h5py.File(PATH_STEM.value+SVD_SOURCE_FILE_NEW.value+'.h5', 'r')
   rank = np.array(f1['S']).shape[0]
   logging.info(f1['V'].shape)
   logging.info(f2['V'].shape)
@@ -22,7 +23,7 @@ def main(_):
     f2['V'][rank:, :]
     ))
 
-  with h5py.File(SVD_TARGET_FILE.value, 'w') as f3:
+  with h5py.File(PATH_STEM.value+SVD_TARGET_FILE.value+'.h5', 'w') as f3:
     f3.create_dataset(name='U', data=np.array(f2['U']))
     f3.create_dataset(name='S', data=np.array(f2['S']))
     f3.create_dataset(name='V', data=V)

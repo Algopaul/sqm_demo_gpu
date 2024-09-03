@@ -10,7 +10,8 @@ import time
 jax.config.update('jax_debug_nans', True)
 jax.config.update('jax_enable_x64', True)
 
-PATH_STEM = '/projects/extremedata/pstmp/'
+PATH_STEM = flags.DEFINE_string('path_stem', '', 'Where to store the svd checkpoints')
+
 
 # general setup
 GAS_GAMMA = flags.DEFINE_float('gas_gamma', 1.4, 'The gas constant.')
@@ -306,7 +307,7 @@ def main(_):
     logging.info(f'Simulation #{i_param} complete')
     if STORE_CHECKPOINTS.value:
       logging.info('Storing checkpoints')
-      with h5py.File(f"{PATH_STEM}checkpoints/{CHECKPOINT_OUTFILE.value}_{i_param}.h5", "w") as f:
+      with h5py.File(f"{PATH_STEM.value}checkpoints/{CHECKPOINT_OUTFILE.value}_{i_param}.h5", "w") as f:
         checkpoints = jnp.stack(checkpoints)
         checkpoints = jnp.reshape(checkpoints, (checkpoints.shape[0], -1))
         f.create_dataset("data", data=checkpoints.T)
@@ -318,7 +319,7 @@ def main(_):
 
   if COMPUTE_SVD.value:
     logging.info('Storing svd')
-    isvd.store_svd(svd_state, jnp.zeros(nx**2*4), f"{PATH_STEM}svd_files/{SVD_OUTFILE.value}.h5")
+    isvd.store_svd(svd_state, jnp.zeros(nx**2*4), f"{PATH_STEM.value}svd_files/{SVD_OUTFILE.value}.h5")
 
 
 if __name__ == "__main__":

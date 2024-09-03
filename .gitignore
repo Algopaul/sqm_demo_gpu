@@ -30,3 +30,4 @@ poetry.lock
 frames/
 checkpoints/
 svd_files/
+input_data/
