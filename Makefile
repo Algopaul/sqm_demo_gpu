@@ -3,6 +3,7 @@
 	.venv/bin/pip install .
 	.venv/bin/pip install .[dev]
 
+include petabyte_sweep.mk
 
 frames:
 	mkdir -p frames
@@ -106,4 +107,5 @@ update_svd:
 	.venv/bin/python sqm_demo/update_svd.py \
 		--svd_source_file_old=svd_files/svd_1.h5 \
 		--svd_source_file_new=svd_files/svd_2a.h5 \
-		--svd_target_file=svd_files/svd_2b.h5 \
+		--svd_target_file=svd_files/svd_2b.h5
+
