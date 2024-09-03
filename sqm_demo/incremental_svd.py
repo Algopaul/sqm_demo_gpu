@@ -13,13 +13,14 @@ SVD_INITIAL_FILE = flags.DEFINE_string('svd_initial_file', '', 'Load initial svd
 IncrementalSVDState = namedtuple("IncrementalSVDState", "U S V")
 
 
+PATH_STEM = '/projects/extremedata/pstmp/'
 
 def load_or_create_initial_svd(state_dim):
   if SVD_INITIAL_FILE.value == '':
     return initialize_empty_svd(state_dim), 0
   else:
     logging.info("Loading initial svd.")
-    return load_svd(SVD_INITIAL_FILE.value, set_V_id=True)
+    return load_svd(PATH_STEM+SVD_INITIAL_FILE.value+'.h5', set_V_id=True)
 
 
 def load_svd(filename, set_V_id=False):
@@ -28,7 +29,8 @@ def load_svd(filename, set_V_id=False):
     S = np.asarray(f['S'])
     if set_V_id:
       V = np.eye(S.shape[0])
-      nn=f['V'].shape[1]-S.shape[0] # pyright: ignore
+      nn=f['V'].shape[0]-S.shape[0] # pyright: ignore
+      logging.info('Using %s virtual rows in V', nn)
     else:
       V = np.asarray(f['V'])
       nn = V.shape[1]
