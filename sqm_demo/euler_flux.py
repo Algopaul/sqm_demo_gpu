@@ -194,6 +194,7 @@ def nsteps(state, prim_state, t, dx, CFL, svd_state):
   return last_state, last_prim_state, t[-1], svd_state
 
 
+@jax.jit
 def nsteps_fori(state, prim_state, t, dx, CFL, svd_state):
 
   def body_fun(_, col):
